@@ -1,0 +1,38 @@
+docker pull progrium/consul
+
+Start Server:
+~~~~~~~~~~~~
+docker rm -f consul-node1
+docker run -d -p 8400:8400 -p 8500:8500 -p 8600:53/udp --name consul-node1 -h consul-node1 progrium/consul -server -bootstrap-expect 3 -ui-dir /ui
+
+CONSUL_IP="$(docker inspect -f '{{.NetworkSettings.IPAddress}}' node1)"
+
+docker rm -f node2
+docker run -d --name node2 -h node2 progrium/consul -server -join $CONSUL_IP -bootstrap-expect 3
+
+docker rm -f node3
+docker run -d --name node3 -h node3 progrium/consul -server -join $CONSUL_IP -bootstrap-expect 3
+
+Registrator
+~~~~~~~~~~~
+CONSUL_IP="$(docker inspect -f '{{.NetworkSettings.IPAddress}}' node1)"
+
+CONSUL_IP="$(docker inspect -f '{{.NetworkSettings.Networks.consul_consul.IPAddress}}' consul-node1)"
+
+docker run -d \
+-v /var/run/docker.sock:/tmp/docker.sock \
+--name registrator -h registrator \
+gliderlabs/registrator:latest consul://$CONSUL_IP:8500
+
+curl --noproxy $CONSUL_IP $CONSUL_IP:8500/v1/catalog/services | jq '.'
+
+curl --noproxy $CONSUL_IP $CONSUL_IP:8500/v1/catalog/service/<service-name> | jq '.'
+
+Consul Health Checks
+~~~~~~~~~~~~~~~~~~~~
+
+curl --noproxy $CONSUL_IP $CONSUL_IP:8500/v1/health/checks/cc-prod-offer
+
+curl --noproxy $CONSUL_IP $CONSUL_IP:8500/v1/health/node/node1
+
+curl --noproxy $CONSUL_IP $CONSUL_IP:8500/v1/health/service/cc-prod-offer
